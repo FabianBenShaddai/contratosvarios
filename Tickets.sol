@@ -1,0 +1,43 @@
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/finance/PaymentSplitter.sol";
+
+contract NFTTickets is ERC721, Ownable, PaymentSplitter, ReentrancyGuard {
+    using SafeMath for uint256;
+    using Counters for Counters.Counter;
+
+    Counters.Counter private _tokenIds;
+    uint256 public price;
+    IERC20 public paymentToken;
+
+    constructor(uint256 _price, IERC20 _paymentToken, address[] memory _payees, uint256[] memory _shares) 
+        ERC721("NFT Tickets", "NFTT")
+        PaymentSplitter(_payees, _shares)
+    {
+        price = _price;
+        paymentToken = _paymentToken;
+    }
+
+    function setPrice(uint256 _price) public onlyOwner {
+        price = _price;
+    }
+
+    function mintNFT(address recipient) public nonReentrant returns (uint256) {
+        require(paymentToken.balanceOf(msg.sender) >= price, "Insufficient balance");
+        require(paymentToken.allowance(msg.sender, address(this)) >= price, "Insufficient allowance");
+        paymentToken.transferFrom(msg.sender, address(this), price);
+        _tokenIds.increment();
+        uint256 newItemId = _tokenIds.current();
+        _mint(recipient, newItemId);
+        return newItemId;
+    }
+
+    function withdraw() public {
+        release(payable(owner()));
+    }
+}
